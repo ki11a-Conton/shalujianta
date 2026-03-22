@@ -1149,7 +1149,7 @@ export class GameEngine {
                     const canPlay = player.energy >= card.cost;
                     if (!canPlay) {
                         this.energyShake = 10;
-                        continue;
+                        break; // 能量不足时停止遍历，不穿透选中底下的卡牌
                     }
 
                     // 开始拖拽
@@ -1161,6 +1161,11 @@ export class GameEngine {
                 }
                 break; // 只悬停最上面的一张
             }
+        }
+
+        // 未拖拽时更新手牌位置，触发悬浮动画
+        if (!this.dragState.isDragging) {
+            this.updateHandPositions();
         }
     }
 
@@ -1193,17 +1198,14 @@ export class GameEngine {
         // 检查是否拖到了出牌区域
         if (this.input.mouseY < playThresholdY) {
             let target = null;
+            let canPlay = true;
 
             // 根据卡牌目标类型确定目标
             if (card.target === CardTarget.ENEMY) {
-                // 指向性攻击：检测鼠标悬停在哪个具体敌人身上
+                // 指向性攻击：必须有明确的瞄准目标，否则出牌失败
                 target = this.aimedEnemy;
                 if (!target) {
-                    // 如果没有瞄准特定敌人，默认打第一个活着的敌人
-                    const aliveEnemies = this.gameState.getAliveEnemies();
-                    if (aliveEnemies.length > 0) {
-                        target = aliveEnemies[0];
-                    }
+                    canPlay = false; // 没有瞄准敌人，取消出牌
                 }
             } else if (card.target === CardTarget.ALL_ENEMIES) {
                 target = null; // 全体攻击不需要特定目标
@@ -1212,7 +1214,7 @@ export class GameEngine {
             }
 
             // 执行出牌
-            if (this.gameState.playCard(card, target)) {
+            if (canPlay && this.gameState.playCard(card, target)) {
                 this.updateHandPositions();
             }
         }
@@ -1222,6 +1224,9 @@ export class GameEngine {
         this.dragState.isDragging = false;
         this.dragState.draggedCard = null;
         this.aimedEnemy = null;
+
+        // 无论出牌成功与否，都让卡牌归位
+        this.updateHandPositions();
     }
 
     handleRewardScreenInput() {
