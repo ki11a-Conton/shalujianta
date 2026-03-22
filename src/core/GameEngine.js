@@ -5,7 +5,7 @@
  * ============================================
  */
 
-import { CONFIG, UIState, NodeType, CardType, TurnPhase, sleep } from '../config/constants.js';
+import { CONFIG, UIState, NodeType, CardType, CardTarget, TurnPhase, sleep } from '../config/constants.js';
 import { InputManager } from './InputManager.js';
 import { FloatingText } from './FloatingText.js';
 import { GameState } from '../systems/GameState.js';
@@ -58,6 +58,17 @@ export class GameEngine {
 
         // 重新开始按钮
         this.restartButtonHovered = false;
+
+        // ========== 拖拽出牌状态机 ==========
+        this.dragState = {
+            isDragging: false,
+            draggedCard: null,
+            dragOffsetX: 0,
+            dragOffsetY: 0
+        };
+
+        // 瞄准的敌人
+        this.aimedEnemy = null;
 
         // 初始化
         this.resize();
@@ -180,8 +191,20 @@ export class GameEngine {
         hand.forEach((card, index) => {
             card.width = cardWidth;
             card.height = cardHeight;
+
+            // 如果卡牌正在被拖拽，不更新目标位置（完全跟随鼠标）
+            if (this.dragState.isDragging && this.dragState.draggedCard === card) {
+                return;
+            }
+
             card.targetX = startX + index * (cardWidth + spacing);
-            card.targetY = baseY;
+
+            // 如果卡牌被悬停且未在拖拽，使其上浮
+            if (card.isHovered && !this.dragState.isDragging) {
+                card.targetY = baseY - 20;
+            } else {
+                card.targetY = baseY;
+            }
         });
     }
 
@@ -294,10 +317,118 @@ export class GameEngine {
     drawGameWorld(ctx) {
         this.drawPlayer(ctx);
         this.gameState.enemies.forEach(enemy => this.drawEnemy(ctx, enemy));
-        this.gameState.deckManager.hand.forEach(card => {
-            const canPlay = this.gameState.player.energy >= card.cost;
+
+        // 绘制瞄准线（如果正在拖拽攻击牌）
+        if (this.dragState.isDragging && this.dragState.draggedCard) {
+            const card = this.dragState.draggedCard;
+            if (card.target === CardTarget.ENEMY) {
+                this.drawAimLine(ctx);
+            }
+        }
+
+        // 绘制手牌（使用专门的drawHand方法，确保拖拽卡牌在最上层）
+        this.drawHand(ctx);
+    }
+
+    /**
+     * 绘制手牌 - 确保拖拽的卡牌最后绘制（在最上层）
+     */
+    drawHand(ctx) {
+        const hand = this.gameState.deckManager.hand;
+        const player = this.gameState.player;
+
+        // 分离拖拽卡牌和非拖拽卡牌
+        const draggedCard = this.dragState.draggedCard;
+        const normalCards = hand.filter(card => card !== draggedCard);
+
+        // 先绘制普通卡牌
+        normalCards.forEach(card => {
+            const canPlay = player.energy >= card.cost;
             this.drawSingleCard(ctx, card, canPlay);
         });
+
+        // 最后绘制拖拽的卡牌（在最上层）
+        if (draggedCard && this.dragState.isDragging) {
+            const canPlay = player.energy >= draggedCard.cost;
+            this.drawSingleCard(ctx, draggedCard, canPlay);
+        }
+    }
+
+    /**
+     * 绘制瞄准线 - 从玩家中心到鼠标的贝塞尔曲线
+     */
+    drawAimLine(ctx) {
+        const player = this.gameState.player;
+        const startX = player.x + player.width / 2;
+        const startY = player.y + player.height / 2;
+        const endX = this.input.mouseX;
+        const endY = this.input.mouseY;
+
+        // 高亮被瞄准的敌人
+        if (this.aimedEnemy) {
+            ctx.save();
+            ctx.strokeStyle = '#f1c40f';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#f1c40f';
+            ctx.shadowBlur = 20;
+            ctx.strokeRect(
+                this.aimedEnemy.x - 5,
+                this.aimedEnemy.y - 5,
+                this.aimedEnemy.width + 10,
+                this.aimedEnemy.height + 10
+            );
+            ctx.restore();
+        }
+
+        // 绘制贝塞尔曲线瞄准线
+        ctx.save();
+
+        // 发光效果
+        ctx.shadowColor = '#e74c3c';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        // 渐变线条
+        const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+        gradient.addColorStop(0, 'rgba(231, 76, 60, 0.8)');
+        gradient.addColorStop(0.5, 'rgba(241, 196, 15, 0.9)');
+        gradient.addColorStop(1, 'rgba(231, 76, 60, 0.4)');
+
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 5]);
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+
+        // 贝塞尔曲线控制点
+        const controlX = (startX + endX) / 2;
+        const controlY = startY - 100;
+
+        ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+        ctx.stroke();
+
+        // 绘制箭头
+        const angle = Math.atan2(endY - controlY, endX - controlX);
+        const arrowLength = 15;
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(
+            endX - arrowLength * Math.cos(angle - Math.PI / 6),
+            endY - arrowLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(
+            endX - arrowLength * Math.cos(angle + Math.PI / 6),
+            endY - arrowLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
     }
 
     drawPlayer(ctx) {
@@ -979,42 +1110,118 @@ export class GameEngine {
         const hand = this.gameState.deckManager.hand;
         const player = this.gameState.player;
 
-        hand.forEach((card, index) => {
+        // 如果正在拖拽卡牌
+        if (this.dragState.isDragging) {
+            const draggedCard = this.dragState.draggedCard;
+
+            // 让拖拽的卡牌跟随鼠标（减去偏移量）
+            draggedCard.x = this.input.mouseX - this.dragState.dragOffsetX;
+            draggedCard.y = this.input.mouseY - this.dragState.dragOffsetY;
+            draggedCard.targetX = draggedCard.x;
+            draggedCard.targetY = draggedCard.y;
+
+            // 检测瞄准的敌人（用于瞄准线和高亮）
+            this.aimedEnemy = this.getEnemyUnderMouse();
+
+            // 当鼠标释放时，处理出牌
+            if (!this.input.isMouseDown) {
+                this.releaseDraggedCard();
+            }
+            return;
+        }
+
+        // 未拖拽状态：检测悬停和开始拖拽
+        // 重置所有卡牌的悬停状态
+        hand.forEach(card => card.isHovered = false);
+
+        // 从后往前遍历手牌（最上面的先检测）
+        for (let i = hand.length - 1; i >= 0; i--) {
+            const card = hand[i];
             const isHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, {
                 x: card.x, y: card.y, width: card.width, height: card.height
             });
-            card.isHovered = isHovered;
 
-            if (isHovered && this.input.isMouseDown) {
-                card.isSelected = true;
-            } else {
-                card.isSelected = false;
-            }
+            if (isHovered) {
+                card.isHovered = true;
 
-            if (isHovered && this.input.isClicked) {
-                const canPlay = player.energy >= card.cost;
-                if (!canPlay) {
-                    this.energyShake = 10;
-                    return;
+                // 按下鼠标时开始拖拽
+                if (this.input.isMouseDown && !this.dragState.isDragging) {
+                    const canPlay = player.energy >= card.cost;
+                    if (!canPlay) {
+                        this.energyShake = 10;
+                        continue;
+                    }
+
+                    // 开始拖拽
+                    this.dragState.isDragging = true;
+                    this.dragState.draggedCard = card;
+                    this.dragState.dragOffsetX = this.input.mouseX - card.x;
+                    this.dragState.dragOffsetY = this.input.mouseY - card.y;
+                    card.isSelected = true;
                 }
+                break; // 只悬停最上面的一张
+            }
+        }
+    }
 
-                let target = null;
-                if (card.target === 'enemy') {
+    /**
+     * 获取鼠标当前悬停的敌人
+     * @returns {Enemy|null}
+     */
+    getEnemyUnderMouse() {
+        for (const enemy of this.gameState.enemies) {
+            if (enemy.isDead()) continue;
+            if (this.isMouseOver(this.input.mouseX, this.input.mouseY, {
+                x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height
+            })) {
+                return enemy;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 释放拖拽的卡牌，处理出牌逻辑
+     */
+    releaseDraggedCard() {
+        const card = this.dragState.draggedCard;
+        const player = this.gameState.player;
+
+        // 设定出牌判定线（鼠标Y坐标必须高于此线才能出牌）
+        const playThresholdY = this.canvas.height - 250;
+
+        // 检查是否拖到了出牌区域
+        if (this.input.mouseY < playThresholdY) {
+            let target = null;
+
+            // 根据卡牌目标类型确定目标
+            if (card.target === CardTarget.ENEMY) {
+                // 指向性攻击：检测鼠标悬停在哪个具体敌人身上
+                target = this.aimedEnemy;
+                if (!target) {
+                    // 如果没有瞄准特定敌人，默认打第一个活着的敌人
                     const aliveEnemies = this.gameState.getAliveEnemies();
                     if (aliveEnemies.length > 0) {
                         target = aliveEnemies[0];
                     }
-                } else if (card.target === 'allEnemies') {
-                    target = null;
-                } else if (card.target === 'self') {
-                    target = player;
                 }
-
-                if (this.gameState.playCard(card, target)) {
-                    this.updateHandPositions();
-                }
+            } else if (card.target === CardTarget.ALL_ENEMIES) {
+                target = null; // 全体攻击不需要特定目标
+            } else if (card.target === CardTarget.SELF) {
+                target = player;
             }
-        });
+
+            // 执行出牌
+            if (this.gameState.playCard(card, target)) {
+                this.updateHandPositions();
+            }
+        }
+
+        // 重置拖拽状态
+        card.isSelected = false;
+        this.dragState.isDragging = false;
+        this.dragState.draggedCard = null;
+        this.aimedEnemy = null;
     }
 
     handleRewardScreenInput() {
