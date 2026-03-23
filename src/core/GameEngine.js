@@ -1,7 +1,7 @@
 /**
  * ============================================
  * GameEngine - 游戏引擎核心
- * 完整的渲染和交互逻辑
+ * 修复了实体与手牌重叠、血条显示不清晰的 Bug
  * ============================================
  */
 
@@ -10,7 +10,6 @@ import { InputManager } from './InputManager.js';
 import { FloatingText } from './FloatingText.js';
 import { GameState } from '../systems/GameState.js';
 import { Player } from '../entities/Player.js';
-import { Enemy } from '../entities/Enemy.js';
 import { Card } from '../cards/Card.js';
 import { DeckManager } from '../systems/DeckManager.js';
 import { VajraRelic, AnchorRelic } from '../systems/Relic.js';
@@ -20,46 +19,35 @@ export class GameEngine {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
-        // 初始化输入管理器
         this.input = new InputManager(canvas);
 
-        // 初始化游戏状态
         this.gameState = null;
         this.uiState = UIState.BATTLE;
 
-        // 视觉反馈
         this.floatingTexts = [];
         this.screenShake = 0;
         this.energyShake = 0;
 
-        // UI 状态
         this.rewardGold = 0;
         this.rewardCards = [];
         this.isCardRewardSelected = false;
         this.rewardCardHovered = [false, false, false];
 
-        // 遗物悬停
         this.relicIcons = [];
         this.hoveredRelicIndex = -1;
 
-        // 篝火状态
         this.campfireRestHovered = false;
         this.campfireSearchHovered = false;
         this.campfireContinueHovered = false;
         this.campfireActionTaken = false;
 
-        // 地图状态
         this.mapNodes = [];
         this.mapNodeHovered = [false, false];
 
-        // 结束回合按钮
         this.endTurnButtonHovered = false;
         this.endTurnButtonRect = { x: 0, y: 0, width: 120, height: 40 };
-
-        // 重新开始按钮
         this.restartButtonHovered = false;
 
-        // ========== 拖拽出牌状态机 ==========
         this.dragState = {
             isDragging: false,
             draggedCard: null,
@@ -67,15 +55,12 @@ export class GameEngine {
             dragOffsetY: 0
         };
 
-        // 瞄准的敌人
         this.aimedEnemy = null;
 
-        // 初始化
         this.resize();
         window.addEventListener('resize', () => this.resize());
         this.initGame();
 
-        // 启动游戏循环
         this.lastTime = 0;
         this.gameLoop = this.gameLoop.bind(this);
         requestAnimationFrame(this.gameLoop);
@@ -90,48 +75,37 @@ export class GameEngine {
     }
 
     initGame() {
-        console.log('=== 初始化游戏 ===');
-
-        // 创建玩家
         const player = new Player('player', '勇者', 80);
 
-        // 添加测试遗物
         player.relics.push(new VajraRelic());
         player.relics.push(new AnchorRelic());
 
-        // 创建初始牌组
         const deckManager = new DeckManager();
         this.initStarterDeck(deckManager);
 
-        // 创建游戏状态
         this.gameState = new GameState(player, deckManager);
         this.gameState.currentFloor = 1;
         this.gameState.maxFloor = 5;
 
-        // 设置回调
         this.setupVisualFeedbackCallbacks();
         this.setupVictoryCallback();
 
-        // 初始化战斗
         this.gameState.initBattle();
         this.syncEntityPositions();
 
         this.uiState = UIState.BATTLE;
-        console.log('游戏初始化完成！');
     }
 
     initStarterDeck(deckManager) {
-        // 初始攻击牌
         for (let i = 0; i < 5; i++) {
             deckManager.addCard(new Card(
-                `strike_${i}`, '打击', 1, CardType.ATTACK, 'enemy', 6,
+                `strike_${i}`, '打击', 1, CardType.ATTACK, CardTarget.ENEMY, 6,
                 '造成 6 点伤害'
             ));
         }
-        // 初始防御牌
         for (let i = 0; i < 5; i++) {
             deckManager.addCard(new Card(
-                `defend_${i}`, '防御', 1, CardType.SKILL, 'self', 5,
+                `defend_${i}`, '防御', 1, CardType.SKILL, CardTarget.SELF, 5,
                 '获得 5 点格挡'
             ));
         }
@@ -166,13 +140,17 @@ export class GameEngine {
 
     syncEntityPositions() {
         const player = this.gameState.player;
-        const playerX = this.canvas.width / 2 - player.width / 2;
-        const playerY = this.canvas.height - player.height - 50;
+        
+        // 修复1：将玩家固定在屏幕左侧中间偏上，彻底避开下方的卡牌区域
+        const playerX = 150;
+        const playerY = this.canvas.height / 2 - player.height / 2 - 50;
         player.setOriginalPosition(playerX, playerY);
 
+        // 修复1：将敌人排布在屏幕右侧
+        const startX = this.canvas.width / 2 + 100;
         this.gameState.enemies.forEach((enemy, index) => {
-            const enemyX = 300 + index * 200;
-            const enemyY = 100;
+            const enemyX = startX + index * 180;
+            const enemyY = this.canvas.height / 2 - enemy.height / 2 - 50;
             enemy.setOriginalPosition(enemyX, enemyY);
         });
 
@@ -192,14 +170,12 @@ export class GameEngine {
             card.width = cardWidth;
             card.height = cardHeight;
 
-            // 如果卡牌正在被拖拽，不更新目标位置（完全跟随鼠标）
             if (this.dragState.isDragging && this.dragState.draggedCard === card) {
                 return;
             }
 
             card.targetX = startX + index * (cardWidth + spacing);
 
-            // 如果卡牌被悬停且未在拖拽，使其上浮
             if (card.isHovered && !this.dragState.isDragging) {
                 card.targetY = baseY - 20;
             } else {
@@ -208,7 +184,6 @@ export class GameEngine {
         });
     }
 
-    // ==================== 游戏主循环 ====================
     gameLoop(timestamp) {
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
@@ -220,7 +195,6 @@ export class GameEngine {
     }
 
     update(deltaTime) {
-        // 处理不同 UI 状态的输入
         if (this.uiState === UIState.REWARD) {
             this.handleRewardScreenInput();
         } else if (this.uiState === UIState.CAMPFIRE) {
@@ -232,7 +206,6 @@ export class GameEngine {
                 this.restartGame();
             }
         } else {
-            // 战斗状态
             if (this.gameState.currentPhase === TurnPhase.PLAYER_TURN) {
                 this.handleCardInteraction();
                 this.checkEndTurnButtonHover();
@@ -243,7 +216,6 @@ export class GameEngine {
             }
         }
 
-        // 更新动画
         this.updateCardAnimations(deltaTime);
         this.updateEntityAnimations(deltaTime);
         this.updateVisualFeedback();
@@ -251,7 +223,6 @@ export class GameEngine {
         this.input.update();
     }
 
-    // ==================== 更新方法 ====================
     updateCardAnimations(deltaTime) {
         this.gameState.deckManager.hand.forEach(card => card.update(deltaTime));
     }
@@ -282,7 +253,6 @@ export class GameEngine {
         }
     }
 
-    // ==================== 渲染方法 ====================
     draw(ctx) {
         ctx.fillStyle = CONFIG.COLORS.BACKGROUND;
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -302,7 +272,6 @@ export class GameEngine {
         this.floatingTexts.forEach(text => text.draw(ctx));
         ctx.restore();
 
-        // 绘制 UI 覆盖层
         if (this.uiState === UIState.REWARD) {
             this.drawRewardScreen(ctx);
         } else if (this.uiState === UIState.CAMPFIRE) {
@@ -318,7 +287,6 @@ export class GameEngine {
         this.drawPlayer(ctx);
         this.gameState.enemies.forEach(enemy => this.drawEnemy(ctx, enemy));
 
-        // 绘制瞄准线（如果正在拖拽攻击牌）
         if (this.dragState.isDragging && this.dragState.draggedCard) {
             const card = this.dragState.draggedCard;
             if (card.target === CardTarget.ENEMY) {
@@ -326,37 +294,27 @@ export class GameEngine {
             }
         }
 
-        // 绘制手牌（使用专门的drawHand方法，确保拖拽卡牌在最上层）
         this.drawHand(ctx);
     }
 
-    /**
-     * 绘制手牌 - 确保拖拽的卡牌最后绘制（在最上层）
-     */
     drawHand(ctx) {
         const hand = this.gameState.deckManager.hand;
         const player = this.gameState.player;
 
-        // 分离拖拽卡牌和非拖拽卡牌
         const draggedCard = this.dragState.draggedCard;
         const normalCards = hand.filter(card => card !== draggedCard);
 
-        // 先绘制普通卡牌
         normalCards.forEach(card => {
             const canPlay = player.energy >= card.cost;
             this.drawSingleCard(ctx, card, canPlay);
         });
 
-        // 最后绘制拖拽的卡牌（在最上层）
         if (draggedCard && this.dragState.isDragging) {
             const canPlay = player.energy >= draggedCard.cost;
             this.drawSingleCard(ctx, draggedCard, canPlay);
         }
     }
 
-    /**
-     * 绘制瞄准线 - 从玩家中心到鼠标的贝塞尔曲线
-     */
     drawAimLine(ctx) {
         const player = this.gameState.player;
         const startX = player.x + player.width / 2;
@@ -364,7 +322,6 @@ export class GameEngine {
         const endX = this.input.mouseX;
         const endY = this.input.mouseY;
 
-        // 高亮被瞄准的敌人
         if (this.aimedEnemy) {
             ctx.save();
             ctx.strokeStyle = '#f1c40f';
@@ -380,16 +337,10 @@ export class GameEngine {
             ctx.restore();
         }
 
-        // 绘制贝塞尔曲线瞄准线
         ctx.save();
-
-        // 发光效果
         ctx.shadowColor = '#e74c3c';
         ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
 
-        // 渐变线条
         const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
         gradient.addColorStop(0, 'rgba(231, 76, 60, 0.8)');
         gradient.addColorStop(0.5, 'rgba(241, 196, 15, 0.9)');
@@ -401,15 +352,12 @@ export class GameEngine {
 
         ctx.beginPath();
         ctx.moveTo(startX, startY);
-
-        // 贝塞尔曲线控制点
+        
         const controlX = (startX + endX) / 2;
         const controlY = startY - 100;
-
         ctx.quadraticCurveTo(controlX, controlY, endX, endY);
         ctx.stroke();
 
-        // 绘制箭头
         const angle = Math.atan2(endY - controlY, endX - controlX);
         const arrowLength = 15;
 
@@ -438,37 +386,53 @@ export class GameEngine {
         const w = player.width;
         const h = player.height;
 
-        // 绘制玩家矩形
         ctx.fillStyle = '#3498db';
         ctx.fillRect(x, y, w, h);
 
-        // 绘制边框
         ctx.strokeStyle = '#2980b9';
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, w, h);
 
-        // 绘制名称
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.fillText(player.name, x + w / 2, y + 25);
 
-        // 绘制 HP
+        // 修复2：恢复血量 UI，使用进度条并带阴影高亮字体
+        const barWidth = w - 20;
+        const barHeight = 16;
+        const barX = x + 10;
+        const barY = y + 40;
+
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
         const hpPercent = player.hp / player.maxHp;
         const hpColor = hpPercent > 0.5 ? '#27ae60' : (hpPercent > 0.25 ? '#f39c12' : '#e74c3c');
         ctx.fillStyle = hpColor;
-        ctx.font = '14px Microsoft YaHei';
-        ctx.fillText(`${player.hp}/${player.maxHp} HP`, x + w / 2, y + 50);
+        ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
 
-        // 绘制格挡
+        ctx.strokeStyle = '#ecf0f1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+        ctx.save();
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${player.hp}/${player.maxHp}`, x + w / 2, barY + barHeight / 2);
+        ctx.restore();
+
         if (player.block > 0) {
             ctx.fillStyle = '#3498db';
             ctx.font = 'bold 14px Microsoft YaHei';
-            ctx.fillText(`${player.block} 格挡`, x + w / 2, y + 70);
+            ctx.fillText(`🛡️ ${player.block}`, x + w / 2, y + 80);
         }
 
-        // 绘制状态效果
-        let statusY = y + 95;
+        let statusY = y + 100;
         for (const [status, value] of Object.entries(player.statusEffects)) {
             if (value > 0) {
                 ctx.fillStyle = this.getStatusColor(status);
@@ -487,34 +451,62 @@ export class GameEngine {
         const w = enemy.width;
         const h = enemy.height;
 
-        // 绘制敌人矩形
         ctx.fillStyle = '#e74c3c';
         ctx.fillRect(x, y, w, h);
 
-        // 绘制边框
         ctx.strokeStyle = '#c0392b';
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, w, h);
 
-        // 绘制名称
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.fillText(enemy.name, x + w / 2, y + 25);
 
-        // 绘制 HP
-        ctx.fillStyle = '#ecf0f1';
-        ctx.font = '14px Microsoft YaHei';
-        ctx.fillText(`${enemy.hp}/${enemy.maxHp} HP`, x + w / 2, y + 50);
+        // 修复2：恢复敌人血条 UI
+        const barWidth = w - 20;
+        const barHeight = 16;
+        const barX = x + 10;
+        const barY = y + 40;
 
-        // 绘制格挡
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        const hpPercent = enemy.hp / enemy.maxHp;
+        const hpColor = hpPercent > 0.5 ? '#27ae60' : (hpPercent > 0.25 ? '#f39c12' : '#e74c3c');
+        ctx.fillStyle = hpColor;
+        ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+
+        ctx.strokeStyle = '#ecf0f1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+        ctx.save();
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${enemy.hp}/${enemy.maxHp}`, x + w / 2, barY + barHeight / 2);
+        ctx.restore();
+
         if (enemy.block > 0) {
             ctx.fillStyle = '#3498db';
             ctx.font = 'bold 14px Microsoft YaHei';
-            ctx.fillText(`${enemy.block} 格挡`, x + w / 2, y + 70);
+            ctx.fillText(`🛡️ ${enemy.block}`, x + w / 2, y + 80);
         }
 
-        // 绘制意图
+        let statusY = y + 100;
+        for (const [status, value] of Object.entries(enemy.statusEffects)) {
+            if (value > 0) {
+                ctx.fillStyle = this.getStatusColor(status);
+                ctx.font = '12px Microsoft YaHei';
+                ctx.fillText(`${status}: ${value}`, x + w / 2, statusY);
+                statusY += 18;
+            }
+        }
+
         ctx.fillStyle = '#f1c40f';
         ctx.font = 'bold 14px Microsoft YaHei';
         ctx.fillText(enemy.intentDescription, x + w / 2, y + h - 20);
@@ -526,20 +518,17 @@ export class GameEngine {
         const w = card.width;
         const h = card.height;
 
-        // 卡牌背景
         const isAttack = card.type === CardType.ATTACK;
         const bgColor = isAttack ? '#e74c3c' : (card.type === CardType.SKILL ? '#3498db' : '#9b59b6');
         ctx.fillStyle = bgColor;
         this.drawRoundedRect(ctx, x, y, w, h, 8);
         ctx.fill();
 
-        // 卡牌边框
         ctx.strokeStyle = card.isHovered ? '#f1c40f' : '#ecf0f1';
         ctx.lineWidth = card.isHovered ? 3 : 2;
         this.drawRoundedRect(ctx, x, y, w, h, 8);
         ctx.stroke();
 
-        // 能量消耗
         ctx.fillStyle = '#f1c40f';
         ctx.beginPath();
         ctx.arc(x + 20, y + 20, 15, 0, Math.PI * 2);
@@ -550,13 +539,11 @@ export class GameEngine {
         ctx.textBaseline = 'middle';
         ctx.fillText(card.cost, x + 20, y + 20);
 
-        // 卡牌名称
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 14px Microsoft YaHei';
         ctx.textBaseline = 'alphabetic';
         ctx.fillText(card.name, x + w / 2, y + 35);
 
-        // 分隔线
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -564,19 +551,16 @@ export class GameEngine {
         ctx.lineTo(x + w - 10, y + 55);
         ctx.stroke();
 
-        // 描述
         ctx.fillStyle = '#ecf0f1';
         ctx.font = '11px Microsoft YaHei';
         ctx.fillText(card.description, x + w / 2, y + 75);
 
-        // 消耗标识
         if (card.keywords && card.keywords.exhaust) {
             ctx.fillStyle = '#e74c3c';
             ctx.font = 'bold 12px Microsoft YaHei';
             ctx.fillText('(消耗)', x + w / 2, y + h - 25);
         }
 
-        // 能量不足遮罩
         if (!canPlay) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             this.drawRoundedRect(ctx, x, y, w, h, 8);
@@ -588,11 +572,9 @@ export class GameEngine {
         const player = this.gameState.player;
         const topBarHeight = 40;
 
-        // 顶部栏背景
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, 0, this.canvas.width, topBarHeight);
 
-        // 底部边框
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -600,7 +582,6 @@ export class GameEngine {
         ctx.lineTo(this.canvas.width, topBarHeight);
         ctx.stroke();
 
-        // 左侧：玩家名称和HP
         ctx.fillStyle = '#ecf0f1';
         ctx.font = 'bold 16px Microsoft YaHei';
         ctx.textAlign = 'left';
@@ -613,7 +594,6 @@ export class GameEngine {
         ctx.font = '12px Microsoft YaHei';
         ctx.fillText(`HP: ${player.hp}/${player.maxHp}`, 80, topBarHeight / 2);
 
-        // 中间：金币和层数
         const centerX = this.canvas.width / 2;
         ctx.fillStyle = '#f1c40f';
         ctx.font = 'bold 14px Microsoft YaHei';
@@ -624,16 +604,9 @@ export class GameEngine {
         ctx.font = 'bold 14px Microsoft YaHei';
         ctx.fillText(`🏰 ${this.gameState.currentFloor}/${this.gameState.maxFloor}`, centerX + 60, topBarHeight / 2);
 
-        // 右侧：遗物
         this.drawRelics(ctx, topBarHeight);
-
-        // 能量球
         this.drawEnergyOrb(ctx);
-
-        // 结束回合按钮
         this.drawEndTurnButton(ctx);
-
-        // 回合阶段提示
         this.drawPhaseIndicator(ctx);
 
         ctx.textBaseline = 'alphabetic';
@@ -1105,36 +1078,28 @@ export class GameEngine {
         ctx.fillText('重新开始', centerX, buttonY + buttonH / 2);
     }
 
-    // ==================== 交互处理方法 ====================
     handleCardInteraction() {
         const hand = this.gameState.deckManager.hand;
         const player = this.gameState.player;
 
-        // 如果正在拖拽卡牌
         if (this.dragState.isDragging) {
             const draggedCard = this.dragState.draggedCard;
 
-            // 让拖拽的卡牌跟随鼠标（减去偏移量）
             draggedCard.x = this.input.mouseX - this.dragState.dragOffsetX;
             draggedCard.y = this.input.mouseY - this.dragState.dragOffsetY;
             draggedCard.targetX = draggedCard.x;
             draggedCard.targetY = draggedCard.y;
 
-            // 检测瞄准的敌人（用于瞄准线和高亮）
             this.aimedEnemy = this.getEnemyUnderMouse();
 
-            // 当鼠标释放时，处理出牌
             if (!this.input.isMouseDown) {
                 this.releaseDraggedCard();
             }
             return;
         }
 
-        // 未拖拽状态：检测悬停和开始拖拽
-        // 重置所有卡牌的悬停状态
         hand.forEach(card => card.isHovered = false);
 
-        // 从后往前遍历手牌（最上面的先检测）
         for (let i = hand.length - 1; i >= 0; i--) {
             const card = hand[i];
             const isHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, {
@@ -1144,35 +1109,28 @@ export class GameEngine {
             if (isHovered) {
                 card.isHovered = true;
 
-                // 按下鼠标时开始拖拽
                 if (this.input.isMouseDown && !this.dragState.isDragging) {
                     const canPlay = player.energy >= card.cost;
                     if (!canPlay) {
                         this.energyShake = 10;
-                        break; // 能量不足时停止遍历，不穿透选中底下的卡牌
+                        break;
                     }
 
-                    // 开始拖拽
                     this.dragState.isDragging = true;
                     this.dragState.draggedCard = card;
                     this.dragState.dragOffsetX = this.input.mouseX - card.x;
                     this.dragState.dragOffsetY = this.input.mouseY - card.y;
                     card.isSelected = true;
                 }
-                break; // 只悬停最上面的一张
+                break;
             }
         }
 
-        // 未拖拽时更新手牌位置，触发悬浮动画
         if (!this.dragState.isDragging) {
             this.updateHandPositions();
         }
     }
 
-    /**
-     * 获取鼠标当前悬停的敌人
-     * @returns {Enemy|null}
-     */
     getEnemyUnderMouse() {
         for (const enemy of this.gameState.enemies) {
             if (enemy.isDead()) continue;
@@ -1185,47 +1143,37 @@ export class GameEngine {
         return null;
     }
 
-    /**
-     * 释放拖拽的卡牌，处理出牌逻辑
-     */
     releaseDraggedCard() {
         const card = this.dragState.draggedCard;
         const player = this.gameState.player;
 
-        // 设定出牌判定线（鼠标Y坐标必须高于此线才能出牌）
         const playThresholdY = this.canvas.height - 250;
 
-        // 检查是否拖到了出牌区域
         if (this.input.mouseY < playThresholdY) {
             let target = null;
-            let canPlay = true;
+            let isValidPlay = true;
 
-            // 根据卡牌目标类型确定目标
             if (card.target === CardTarget.ENEMY) {
-                // 指向性攻击：必须有明确的瞄准目标，否则出牌失败
                 target = this.aimedEnemy;
                 if (!target) {
-                    canPlay = false; // 没有瞄准敌人，取消出牌
+                    isValidPlay = false;
                 }
             } else if (card.target === CardTarget.ALL_ENEMIES) {
-                target = null; // 全体攻击不需要特定目标
+                target = null;
             } else if (card.target === CardTarget.SELF) {
                 target = player;
             }
 
-            // 执行出牌
-            if (canPlay && this.gameState.playCard(card, target)) {
-                this.updateHandPositions();
+            if (isValidPlay && this.gameState.playCard(card, target)) {
+                // Play successful
             }
         }
 
-        // 重置拖拽状态
         card.isSelected = false;
         this.dragState.isDragging = false;
         this.dragState.draggedCard = null;
         this.aimedEnemy = null;
 
-        // 无论出牌成功与否，都让卡牌归位
         this.updateHandPositions();
     }
 
@@ -1330,7 +1278,6 @@ export class GameEngine {
         }
     }
 
-    // ==================== 游戏逻辑方法 ====================
     endPlayerTurn() {
         this.gameState.endPlayerTurn();
     }
@@ -1345,11 +1292,11 @@ export class GameEngine {
 
     generateRewardCards() {
         const cardTemplates = [
-            { name: '重击', cost: 2, type: CardType.ATTACK, value: 14, desc: '造成 14 点伤害' },
-            { name: '铁布衫', cost: 1, type: CardType.SKILL, value: 8, desc: '获得 8 点格挡' },
-            { name: '剑气', cost: 1, type: CardType.ATTACK, value: 8, desc: '造成 8 点伤害，抽 1 张牌', effects: [{ type: 'draw', value: 1 }] },
-            { name: '怒吼', cost: 0, type: CardType.SKILL, value: 0, desc: '获得 2 层力量', effects: [{ type: 'apply_status', status: 'strength', value: 2 }] },
-            { name: '双重打击', cost: 1, type: CardType.ATTACK, value: 5, desc: '造成 5 点伤害 2 次' }
+            { name: '重击', cost: 2, type: CardType.ATTACK, target: CardTarget.ENEMY, value: 14, desc: '造成 14 点伤害' },
+            { name: '铁布衫', cost: 1, type: CardType.SKILL, target: CardTarget.SELF, value: 8, desc: '获得 8 点格挡' },
+            { name: '剑气', cost: 1, type: CardType.ATTACK, target: CardTarget.ENEMY, value: 8, desc: '造成 8 点伤害，抽 1 张牌', effects: [{ type: 'draw', value: 1 }] },
+            { name: '怒吼', cost: 0, type: CardType.SKILL, target: CardTarget.SELF, value: 0, desc: '获得 2 层力量', effects: [{ type: 'apply_status', status: 'strength', value: 2 }] },
+            { name: '双重打击', cost: 1, type: CardType.ATTACK, target: CardTarget.ENEMY, value: 5, desc: '造成 5 点伤害 2 次' }
         ];
 
         this.rewardCards = [];
@@ -1360,7 +1307,7 @@ export class GameEngine {
                 template.name,
                 template.cost,
                 template.type,
-                'enemy',
+                template.target,
                 template.value,
                 template.desc,
                 template.effects || []
@@ -1470,7 +1417,6 @@ export class GameEngine {
         this.initGame();
     }
 
-    // ==================== 辅助方法 ====================
     isMouseOver(mx, my, rect) {
         return mx >= rect.x && mx <= rect.x + rect.width &&
                my >= rect.y && my <= rect.y + rect.height;
