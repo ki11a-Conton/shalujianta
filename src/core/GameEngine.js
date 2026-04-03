@@ -12,7 +12,7 @@ import { GameState } from '../systems/GameState.js';
 import { Player } from '../entities/Player.js';
 import { Card, CardFactory } from '../cards/Card.js';
 import { DeckManager } from '../systems/DeckManager.js';
-import { RelicFactory, BurningBloodRelic } from '../systems/Relic.js';
+import { RelicFactory, BurningBloodRelic, VajraRelic, AnchorRelic } from '../systems/Relic.js';
 import { assetManager } from '../utils/AssetManager.js';
 import { SaveManager } from '../systems/SaveManager.js';
 
