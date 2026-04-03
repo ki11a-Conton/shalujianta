@@ -1995,7 +1995,7 @@ export class GameEngine {
 
         ctx.fillStyle = '#f1c40f';
         ctx.font = '20px Microsoft YaHei';
-        ctx.fillText(`到达层数: ${this.gameState.currentFloor}`, centerX, centerY + 30);
+        ctx.fillText(`到达层数: ${this.gameState ? this.gameState.currentFloor : 0}`, centerX, centerY + 30);
 
         const buttonY = centerY + 120;
         const buttonW = 200;
