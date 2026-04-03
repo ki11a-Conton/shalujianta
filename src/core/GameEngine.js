@@ -196,17 +196,22 @@ export class GameEngine {
 
     syncEntityPositions() {
         const player = this.gameState.player;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2 - 50;
         
-        // 修复1：将玩家固定在屏幕左侧中间偏上，彻底避开下方的卡牌区域
-        const playerX = 150;
-        const playerY = this.canvas.height / 2 - player.height / 2 - 50;
+        // 将玩家放在屏幕左侧，与敌人对称
+        const playerX = centerX - 200 - player.width / 2;
+        const playerY = centerY - player.height / 2;
         player.setOriginalPosition(playerX, playerY);
 
-        // 修复1：将敌人排布在屏幕右侧
-        const startX = this.canvas.width / 2 + 100;
+        // 将敌人排布在屏幕右侧，与玩家对称
+        const enemyCount = this.gameState.enemies.length;
+        const totalEnemiesWidth = enemyCount * 120 + (enemyCount - 1) * 60;
+        const enemiesStartX = centerX + 200 - totalEnemiesWidth / 2;
+        
         this.gameState.enemies.forEach((enemy, index) => {
-            const enemyX = startX + index * 180;
-            const enemyY = this.canvas.height / 2 - enemy.height / 2 - 50;
+            const enemyX = enemiesStartX + index * (120 + 60);
+            const enemyY = centerY - enemy.height / 2;
             enemy.setOriginalPosition(enemyX, enemyY);
         });
 
