@@ -68,7 +68,7 @@ export class GameEngine {
         this.shopItems = [];
         this.shopItemHovered = [];
         this.shopLeaveHovered = false;
-        this.shopCardRemovalPrice = 75;
+        this.shopCardRemovalPrice = 50;
 
         this.removalDeckCards = [];
         this.removalCardHovered = [];
@@ -2568,7 +2568,7 @@ export class GameEngine {
             this.shopItems.push({
                 type: 'card',
                 item: card,
-                price: 50,
+                price: 30 + Math.floor(Math.random() * 20),
                 sold: false
             });
         }
@@ -2578,7 +2578,7 @@ export class GameEngine {
         this.shopItems.push({
             type: 'relic',
             item: new randomRelicClass(),
-            price: 150,
+            price: 100,
             sold: false
         });
 
