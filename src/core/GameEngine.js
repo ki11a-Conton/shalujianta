@@ -684,7 +684,7 @@ export class GameEngine {
             }
         }
 
-        const intentY = y - 30;
+        const intentY = y - 60;
         const intentWidth = w + 20;
         const intentHeight = 45;
         const intentX = x - 10;
@@ -1182,7 +1182,7 @@ export class GameEngine {
 
     drawDeckPiles(ctx) {
         const deckStatus = this.gameState.deckManager.getStatus();
-        const pileY = this.canvas.height - 120;
+        const pileY = this.canvas.height - 220;
         const pileSpacing = 160;
         const startX = 10;
 
