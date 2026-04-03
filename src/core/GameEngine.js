@@ -10,9 +10,9 @@ import { InputManager } from './InputManager.js';
 import { FloatingText } from './FloatingText.js';
 import { GameState } from '../systems/GameState.js';
 import { Player } from '../entities/Player.js';
-import { Card } from '../cards/Card.js';
+import { Card, CardFactory } from '../cards/Card.js';
 import { DeckManager } from '../systems/DeckManager.js';
-import { VajraRelic, AnchorRelic } from '../systems/Relic.js';
+import { RelicFactory, BurningBloodRelic } from '../systems/Relic.js';
 import { assetManager } from '../utils/AssetManager.js';
 import { SaveManager } from '../systems/SaveManager.js';
 
@@ -139,8 +139,8 @@ export class GameEngine {
     initGame() {
         const player = new Player('player', '勇者', 80);
 
-        player.relics.push(new VajraRelic());
-        player.relics.push(new AnchorRelic());
+        const starterRelics = RelicFactory.getStarterRelics();
+        starterRelics.forEach(relic => player.relics.push(relic));
 
         const deckManager = new DeckManager();
         this.initStarterDeck(deckManager);
@@ -159,17 +159,12 @@ export class GameEngine {
 
     initStarterDeck(deckManager) {
         for (let i = 0; i < 5; i++) {
-            deckManager.addCard(new Card(
-                `strike_${i}`, '打击', 1, CardType.ATTACK, CardTarget.ENEMY, 6,
-                '造成 6 点伤害'
-            ));
+            deckManager.addCard(CardFactory.createStrike());
         }
-        for (let i = 0; i < 5; i++) {
-            deckManager.addCard(new Card(
-                `defend_${i}`, '防御', 1, CardType.SKILL, CardTarget.SELF, 5,
-                '获得 5 点格挡'
-            ));
+        for (let i = 0; i < 4; i++) {
+            deckManager.addCard(CardFactory.createDefend());
         }
+        deckManager.addCard(CardFactory.createBash());
         deckManager.shuffleDrawPile();
     }
 
