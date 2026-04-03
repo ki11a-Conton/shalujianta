@@ -72,6 +72,9 @@ export class GameEngine {
         this.mainMenuContinueHovered = false;
         this.mainMenuNewGameHovered = false;
         this.hasSaveData = SaveManager.hasSave();
+        
+        // 背景粒子
+        this.backgroundParticles = this.createBackgroundParticles();
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -84,9 +87,53 @@ export class GameEngine {
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        // 重新创建背景粒子
+        this.backgroundParticles = this.createBackgroundParticles();
         if (this.gameState) {
             this.syncEntityPositions();
         }
+    }
+    
+    createBackgroundParticles() {
+        const particles = [];
+        const count = 50;
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                size: Math.random() * 3 + 1,
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                alpha: Math.random() * 0.5 + 0.2
+            });
+        }
+        return particles;
+    }
+    
+    drawBackgroundParticles(ctx) {
+        this.backgroundParticles.forEach(particle => {
+            // 更新粒子位置
+            particle.x += particle.speedX;
+            particle.y += particle.speedY;
+            
+            // 边界处理
+            if (particle.x < 0) particle.x = this.canvas.width;
+            if (particle.x > this.canvas.width) particle.x = 0;
+            if (particle.y < 0) particle.y = this.canvas.height;
+            if (particle.y > this.canvas.height) particle.y = 0;
+            
+            // 绘制发光粒子
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            const gradient = ctx.createRadialGradient(
+                particle.x, particle.y, 0,
+                particle.x, particle.y, particle.size * 2
+            );
+            gradient.addColorStop(0, `rgba(100, 149, 237, ${particle.alpha})`);
+            gradient.addColorStop(1, 'rgba(100, 149, 237, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        });
     }
 
     initGame() {
@@ -276,12 +323,22 @@ export class GameEngine {
     }
 
     draw(ctx) {
+        // 绘制渐变背景
+        const gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+        gradient.addColorStop(0, '#1a1a2e');
+        gradient.addColorStop(0.5, '#16213e');
+        gradient.addColorStop(1, '#0f0f1a');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 绘制背景粒子效果
+        this.drawBackgroundParticles(ctx);
+        
         const bgImage = assetManager.getImage('bg');
         if (bgImage) {
+            ctx.globalAlpha = 0.3;
             ctx.drawImage(bgImage, 0, 0, this.canvas.width, this.canvas.height);
-        } else {
-            ctx.fillStyle = CONFIG.COLORS.BACKGROUND;
-            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            ctx.globalAlpha = 1;
         }
 
         ctx.save();
@@ -419,17 +476,37 @@ export class GameEngine {
         const w = player.width;
         const h = player.height;
 
+        // 添加发光效果
+        ctx.save();
+        ctx.shadowColor = '#64b5f6';
+        ctx.shadowBlur = 20;
+        
         const playerImage = assetManager.getImage('player');
         if (playerImage) {
             ctx.drawImage(playerImage, x, y, w, h);
         } else {
-            ctx.fillStyle = '#3498db';
-            ctx.fillRect(x, y, w, h);
+            // 绘制更精美的玩家角色
+            const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+            gradient.addColorStop(0, '#4a90d9');
+            gradient.addColorStop(0.5, '#2196f3');
+            gradient.addColorStop(1, '#1976d2');
+            ctx.fillStyle = gradient;
+            this.drawRoundedRect(ctx, x, y, w, h, 15);
+            ctx.fill();
 
-            ctx.strokeStyle = '#2980b9';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(x, y, w, h);
+            ctx.strokeStyle = '#64b5f6';
+            ctx.lineWidth = 4;
+            this.drawRoundedRect(ctx, x, y, w, h, 15);
+            ctx.stroke();
+            
+            // 添加装饰元素
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⚔️', x + w / 2, y + h / 2);
         }
+        ctx.restore();
 
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px Microsoft YaHei';
@@ -437,27 +514,47 @@ export class GameEngine {
         ctx.fillText(player.name, x + w / 2, y + 25);
 
         const barWidth = w - 20;
-        const barHeight = 16;
+        const barHeight = 20;
         const barX = x + 10;
-        const barY = y + 40;
+        const barY = y + 45;
 
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
+        // 血条背景
+        const bgGradient = ctx.createLinearGradient(barX, barY, barX, barY + barHeight);
+        bgGradient.addColorStop(0, '#1a237e');
+        bgGradient.addColorStop(1, '#0d1442');
+        ctx.fillStyle = bgGradient;
+        this.drawRoundedRect(ctx, barX, barY, barWidth, barHeight, 10);
+        ctx.fill();
 
+        // 血条进度
         const hpPercent = player.hp / player.maxHp;
-        const hpColor = hpPercent > 0.5 ? '#27ae60' : (hpPercent > 0.25 ? '#f39c12' : '#e74c3c');
-        ctx.fillStyle = hpColor;
-        ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+        const hpColor1 = hpPercent > 0.5 ? '#4caf50' : (hpPercent > 0.25 ? '#ff9800' : '#f44336');
+        const hpColor2 = hpPercent > 0.5 ? '#2e7d32' : (hpPercent > 0.25 ? '#f57c00' : '#c62828');
+        
+        const hpGradient = ctx.createLinearGradient(barX, barY, barX, barY + barHeight);
+        hpGradient.addColorStop(0, hpColor1);
+        hpGradient.addColorStop(1, hpColor2);
+        
+        ctx.fillStyle = hpGradient;
+        if (barWidth * hpPercent > 0) {
+            this.drawRoundedRect(ctx, barX, barY, barWidth * hpPercent, barHeight, 10);
+            ctx.fill();
+        }
 
-        ctx.strokeStyle = '#ecf0f1';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        // 血条边框
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        this.drawRoundedRect(ctx, barX, barY, barWidth, barHeight, 10);
+        ctx.stroke();
 
+        // 血条文字
         ctx.save();
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px Microsoft YaHei';
+        ctx.font = 'bold 14px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${player.hp}/${player.maxHp}`, x + w / 2, barY + barHeight / 2);
@@ -488,19 +585,39 @@ export class GameEngine {
         const w = enemy.width;
         const h = enemy.height;
 
+        // 添加发光效果
+        ctx.save();
+        ctx.shadowColor = '#ff5252';
+        ctx.shadowBlur = 15;
+        
         const enemyImageKey = this.getEnemyImageKey(enemy.id);
         const enemyImage = assetManager.getImage(enemyImageKey);
         
         if (enemyImage) {
             ctx.drawImage(enemyImage, x, y, w, h);
         } else {
-            ctx.fillStyle = '#e74c3c';
-            ctx.fillRect(x, y, w, h);
+            // 绘制更精美的敌人角色
+            const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+            gradient.addColorStop(0, '#ef5350');
+            gradient.addColorStop(0.5, '#e53935');
+            gradient.addColorStop(1, '#c62828');
+            ctx.fillStyle = gradient;
+            this.drawRoundedRect(ctx, x, y, w, h, 15);
+            ctx.fill();
 
-            ctx.strokeStyle = '#c0392b';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(x, y, w, h);
+            ctx.strokeStyle = '#ff7043';
+            ctx.lineWidth = 4;
+            this.drawRoundedRect(ctx, x, y, w, h, 15);
+            ctx.stroke();
+            
+            // 添加装饰元素
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('👹', x + w / 2, y + h / 2);
         }
+        ctx.restore();
 
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px Microsoft YaHei';
@@ -508,27 +625,47 @@ export class GameEngine {
         ctx.fillText(enemy.name, x + w / 2, y + 25);
 
         const barWidth = w - 20;
-        const barHeight = 16;
+        const barHeight = 20;
         const barX = x + 10;
-        const barY = y + 40;
+        const barY = y + 45;
 
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
+        // 血条背景
+        const bgGradient = ctx.createLinearGradient(barX, barY, barX, barY + barHeight);
+        bgGradient.addColorStop(0, '#4a148c');
+        bgGradient.addColorStop(1, '#230339');
+        ctx.fillStyle = bgGradient;
+        this.drawRoundedRect(ctx, barX, barY, barWidth, barHeight, 10);
+        ctx.fill();
 
+        // 血条进度
         const hpPercent = enemy.hp / enemy.maxHp;
-        const hpColor = hpPercent > 0.5 ? '#27ae60' : (hpPercent > 0.25 ? '#f39c12' : '#e74c3c');
-        ctx.fillStyle = hpColor;
-        ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+        const hpColor1 = hpPercent > 0.5 ? '#4caf50' : (hpPercent > 0.25 ? '#ff9800' : '#f44336');
+        const hpColor2 = hpPercent > 0.5 ? '#2e7d32' : (hpPercent > 0.25 ? '#f57c00' : '#c62828');
+        
+        const hpGradient = ctx.createLinearGradient(barX, barY, barX, barY + barHeight);
+        hpGradient.addColorStop(0, hpColor1);
+        hpGradient.addColorStop(1, hpColor2);
+        
+        ctx.fillStyle = hpGradient;
+        if (barWidth * hpPercent > 0) {
+            this.drawRoundedRect(ctx, barX, barY, barWidth * hpPercent, barHeight, 10);
+            ctx.fill();
+        }
 
-        ctx.strokeStyle = '#ecf0f1';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        // 血条边框
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        this.drawRoundedRect(ctx, barX, barY, barWidth, barHeight, 10);
+        ctx.stroke();
 
+        // 血条文字
         ctx.save();
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px Microsoft YaHei';
+        ctx.font = 'bold 14px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${enemy.hp}/${enemy.maxHp}`, x + w / 2, barY + barHeight / 2);
@@ -575,46 +712,122 @@ export class GameEngine {
         const isAttack = card.type === CardType.ATTACK;
         const cardImageKey = isAttack ? 'card_attack' : (card.type === CardType.SKILL ? 'card_skill' : 'card_power');
         const cardImage = assetManager.getImage(cardImageKey);
-        const bgColor = isAttack ? '#e74c3c' : (card.type === CardType.SKILL ? '#3498db' : '#9b59b6');
+        
+        // 卡牌颜色配置
+        const colorConfig = {
+            [CardType.ATTACK]: { 
+                primary: '#ef5350', 
+                secondary: '#c62828', 
+                accent: '#ff8a80',
+                icon: '⚔️'
+            },
+            [CardType.SKILL]: { 
+                primary: '#42a5f5', 
+                secondary: '#1565c0', 
+                accent: '#82b1ff',
+                icon: '🛡️'
+            },
+            [CardType.POWER]: { 
+                primary: '#ab47bc', 
+                secondary: '#6a1b9a', 
+                accent: '#ea80fc',
+                icon: '✨'
+            }
+        };
+        
+        const config = colorConfig[card.type] || colorConfig[CardType.SKILL];
 
+        // 添加发光效果
+        ctx.save();
+        if (card.isHovered) {
+            ctx.shadowColor = config.accent;
+            ctx.shadowBlur = 20;
+        }
+        
         if (cardImage) {
             ctx.drawImage(cardImage, x, y, w, h);
         } else {
-            ctx.fillStyle = bgColor;
-            this.drawRoundedRect(ctx, x, y, w, h, 8);
+            // 绘制精美渐变卡牌
+            const gradient = ctx.createLinearGradient(x, y, x, y + h);
+            gradient.addColorStop(0, config.primary);
+            gradient.addColorStop(0.5, config.secondary);
+            gradient.addColorStop(1, config.secondary);
+            
+            ctx.fillStyle = gradient;
+            this.drawRoundedRect(ctx, x, y, w, h, 12);
             ctx.fill();
+            
+            // 添加卡牌纹理效果
+            ctx.globalAlpha = 0.1;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(x, y + (h / 5) * i);
+                ctx.lineTo(x + w, y + (h / 5) * i);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
         }
 
-        ctx.strokeStyle = card.isHovered ? '#f1c40f' : '#ecf0f1';
-        ctx.lineWidth = card.isHovered ? 3 : 2;
-        this.drawRoundedRect(ctx, x, y, w, h, 8);
+        // 美化边框
+        ctx.strokeStyle = card.isHovered ? '#fdd835' : (canPlay ? '#ffffff' : 'rgba(255,255,255,0.5)');
+        ctx.lineWidth = card.isHovered ? 4 : 3;
+        this.drawRoundedRect(ctx, x, y, w, h, 12);
         ctx.stroke();
 
-        ctx.fillStyle = '#f1c40f';
+        // 美化能量消耗图标
+        const costGradient = ctx.createRadialGradient(
+            x + 20, y + 20, 0,
+            x + 20, y + 20, 18
+        );
+        costGradient.addColorStop(0, '#ffd54f');
+        costGradient.addColorStop(0.7, '#ff9800');
+        costGradient.addColorStop(1, '#e65100');
+        
+        ctx.fillStyle = costGradient;
         ctx.beginPath();
-        ctx.arc(x + 20, y + 20, 15, 0, Math.PI * 2);
+        ctx.arc(x + 20, y + 20, 16, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#2c3e50';
-        ctx.font = 'bold 16px Microsoft YaHei';
+        
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#263238';
+        ctx.font = 'bold 18px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(card.cost, x + 20, y + 20);
 
+        // 美化卡牌名称
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 14px Microsoft YaHei';
+        ctx.font = 'bold 16px Microsoft YaHei';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(card.name, x + w / 2, y + 35);
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(card.name, x + w / 2, y + 40);
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
+        // 添加装饰性分隔线
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(x + 10, y + 55);
-        ctx.lineTo(x + w - 10, y + 55);
+        ctx.moveTo(x + 15, y + 60);
+        ctx.lineTo(x + w - 15, y + 60);
         ctx.stroke();
 
-        ctx.fillStyle = '#ecf0f1';
-        ctx.font = '11px Microsoft YaHei';
-        ctx.fillText(card.description, x + w / 2, y + 75);
+        // 美化卡牌描述
+        ctx.fillStyle = '#f5f5f5';
+        ctx.font = '12px Microsoft YaHei';
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 2;
+        ctx.fillText(card.description, x + w / 2, y + 85);
+        ctx.shadowBlur = 0;
 
         if (card.keywords && card.keywords.exhaust) {
             ctx.fillStyle = '#e74c3c';
@@ -631,39 +844,61 @@ export class GameEngine {
 
     drawGameInfo(ctx) {
         const player = this.gameState.player;
-        const topBarHeight = 40;
+        const topBarHeight = 50;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        // 美化顶栏背景
+        const bgGradient = ctx.createLinearGradient(0, 0, 0, topBarHeight);
+        bgGradient.addColorStop(0, 'rgba(26, 26, 46, 0.95)');
+        bgGradient.addColorStop(1, 'rgba(15, 15, 26, 0.98)');
+        ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, this.canvas.width, topBarHeight);
 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = 1;
+        // 装饰性边框
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, topBarHeight);
         ctx.lineTo(this.canvas.width, topBarHeight);
         ctx.stroke();
 
+        // 玩家名字
         ctx.fillStyle = '#ecf0f1';
-        ctx.font = 'bold 16px Microsoft YaHei';
+        ctx.font = 'bold 18px Microsoft YaHei';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(player.name, 15, topBarHeight / 2);
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(player.name, 20, topBarHeight / 2);
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
+        // 玩家HP
         const hpPercent = player.hp / player.maxHp;
-        const hpColor = hpPercent > 0.5 ? '#27ae60' : (hpPercent > 0.25 ? '#f39c12' : '#e74c3c');
+        const hpColor = hpPercent > 0.5 ? '#69f0ae' : (hpPercent > 0.25 ? '#ffd54f' : '#ff5252');
         ctx.fillStyle = hpColor;
-        ctx.font = '12px Microsoft YaHei';
-        ctx.fillText(`HP: ${player.hp}/${player.maxHp}`, 80, topBarHeight / 2);
+        ctx.font = '16px Microsoft YaHei';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 2;
+        ctx.fillText(`❤️ ${player.hp}/${player.maxHp}`, 100, topBarHeight / 2);
+        ctx.shadowBlur = 0;
 
         const centerX = this.canvas.width / 2;
-        ctx.fillStyle = '#f1c40f';
-        ctx.font = 'bold 14px Microsoft YaHei';
+        // 金币
+        ctx.fillStyle = '#ffd54f';
+        ctx.font = 'bold 16px Microsoft YaHei';
         ctx.textAlign = 'center';
-        ctx.fillText(`💰 ${player.gold}`, centerX - 60, topBarHeight / 2);
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 2;
+        ctx.fillText(`💰 ${player.gold}`, centerX - 70, topBarHeight / 2);
 
-        ctx.fillStyle = '#9b59b6';
-        ctx.font = 'bold 14px Microsoft YaHei';
-        ctx.fillText(`🏰 ${this.gameState.currentFloor}/${this.gameState.maxFloor}`, centerX + 60, topBarHeight / 2);
+        // 楼层
+        ctx.fillStyle = '#ea80fc';
+        ctx.font = 'bold 16px Microsoft YaHei';
+        ctx.fillText(`🏰 ${this.gameState.currentFloor}/${this.gameState.maxFloor}`, centerX + 70, topBarHeight / 2);
+        ctx.shadowBlur = 0;
 
         this.drawRelics(ctx, topBarHeight);
         this.drawEnergyOrb(ctx);
@@ -774,57 +1009,117 @@ export class GameEngine {
     drawEnergyOrb(ctx) {
         const orbX = 80;
         const orbY = this.canvas.height - 100;
-        const orbRadius = 35;
+        const orbRadius = 40;
 
         const shakeX = this.energyShake > 0 ? (Math.random() - 0.5) * this.energyShake : 0;
         const shakeY = this.energyShake > 0 ? (Math.random() - 0.5) * this.energyShake : 0;
 
-        ctx.fillStyle = '#f1c40f';
+        // 添加发光效果
+        ctx.save();
+        ctx.shadowColor = '#ffd54f';
+        ctx.shadowBlur = 25;
+        
+        // 渐变能量球
+        const gradient = ctx.createRadialGradient(
+            orbX + shakeX - 10, orbY + shakeY - 10, 0,
+            orbX + shakeX, orbY + shakeY, orbRadius
+        );
+        gradient.addColorStop(0, '#fff9c4');
+        gradient.addColorStop(0.3, '#ffd54f');
+        gradient.addColorStop(0.7, '#ff9800');
+        gradient.addColorStop(1, '#e65100');
+        
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(orbX + shakeX, orbY + shakeY, orbRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#f39c12';
+        // 能量球边框
+        ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(orbX + shakeX, orbY + shakeY, orbRadius, 0, Math.PI * 2);
         ctx.stroke();
+        
+        ctx.restore();
 
-        ctx.fillStyle = '#2c3e50';
-        ctx.font = 'bold 24px Microsoft YaHei';
+        // 能量文字
+        ctx.fillStyle = '#263238';
+        ctx.font = 'bold 28px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillText(this.gameState.player.energy, orbX + shakeX, orbY + shakeY);
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
-        ctx.fillStyle = '#ecf0f1';
-        ctx.font = '12px Microsoft YaHei';
-        ctx.fillText('/3', orbX + shakeX + 20, orbY + shakeY + 10);
+        // 最大能量
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Microsoft YaHei';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 2;
+        ctx.fillText('/3', orbX + shakeX + 25, orbY + shakeY + 15);
+        ctx.shadowBlur = 0;
     }
 
     drawEndTurnButton(ctx) {
         if (this.gameState.currentPhase !== TurnPhase.PLAYER_TURN) return;
 
-        const buttonX = this.canvas.width - 140;
-        const buttonY = this.canvas.height - 150;
-        const buttonW = 120;
-        const buttonH = 40;
+        const buttonX = this.canvas.width - 150;
+        const buttonY = this.canvas.height - 160;
+        const buttonW = 130;
+        const buttonH = 50;
 
         this.endTurnButtonRect = { x: buttonX, y: buttonY, width: buttonW, height: buttonH };
 
-        ctx.fillStyle = this.endTurnButtonHovered ? '#27ae60' : '#2ecc71';
-        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 8);
+        // 添加发光效果
+        ctx.save();
+        if (this.endTurnButtonHovered) {
+            ctx.shadowColor = '#69f0ae';
+            ctx.shadowBlur = 20;
+        }
+        
+        // 渐变按钮背景
+        const gradient = ctx.createLinearGradient(buttonX, buttonY, buttonX, buttonY + buttonH);
+        if (this.endTurnButtonHovered) {
+            gradient.addColorStop(0, '#69f0ae');
+            gradient.addColorStop(0.5, '#00e676');
+            gradient.addColorStop(1, '#00c853');
+        } else {
+            gradient.addColorStop(0, '#4caf50');
+            gradient.addColorStop(0.5, '#388e3c');
+            gradient.addColorStop(1, '#2e7d32');
+        }
+        
+        ctx.fillStyle = gradient;
+        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 12);
         ctx.fill();
 
-        ctx.strokeStyle = this.endTurnButtonHovered ? '#f1c40f' : '#27ae60';
-        ctx.lineWidth = this.endTurnButtonHovered ? 3 : 2;
-        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 8);
+        // 按钮边框
+        ctx.strokeStyle = this.endTurnButtonHovered ? '#fff' : 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = this.endTurnButtonHovered ? 4 : 2;
+        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 12);
         ctx.stroke();
+        
+        ctx.restore();
 
+        // 按钮文字
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px Microsoft YaHei';
+        ctx.font = 'bold 18px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillText('结束回合', buttonX + buttonW / 2, buttonY + buttonH / 2);
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
     }
 
     drawPhaseIndicator(ctx) {
