@@ -215,8 +215,10 @@ export class Card {
         this.effects.forEach(effect => {
             switch (effect.type) {
                 case 'draw':
-                    gameState.deckManager.drawCards(effect.value);
-                    console.log(`抽 ${effect.value} 张牌`);
+                    if (gameState && gameState.deckManager) {
+                        gameState.deckManager.drawCards(effect.value);
+                        console.log(`抽 ${effect.value} 张牌`);
+                    }
                     break;
 
                 case 'apply_status':
@@ -238,12 +240,14 @@ export class Card {
                     break;
 
                 case 'damage_all':
-                    gameState.enemies.forEach(enemy => {
-                        if (!enemy.isDead()) {
-                            const dmg = this.calculateDamage(caster, effect.value);
-                            enemy.takeDamage(dmg);
-                        }
-                    });
+                    if (gameState && gameState.enemies) {
+                        gameState.enemies.forEach(enemy => {
+                            if (!enemy.isDead()) {
+                                const dmg = this.calculateDamage(caster, effect.value);
+                                enemy.takeDamage(dmg);
+                            }
+                        });
+                    }
                     break;
 
                 case 'double_poison':
