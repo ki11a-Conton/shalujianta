@@ -1184,7 +1184,8 @@ export class GameEngine {
         const deckStatus = this.gameState.deckManager.getStatus();
         const pileY = this.canvas.height - 220;
         const pileSpacing = 160;
-        const startX = 10;
+        const totalWidth = 3 * 140 + 2 * 20;
+        const startX = (this.canvas.width - totalWidth) / 2;
 
         const piles = [
             { name: '抽牌堆', count: deckStatus.drawPile, color: '#3498db', icon: '📚' },
