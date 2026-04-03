@@ -593,13 +593,83 @@ export class CardFactory {
         );
     }
 
+    static createSwordBoomerang() {
+        return new Card(
+            'sword_boomerang', '剑刃回旋', 2, CardType.ATTACK, CardTarget.ENEMY, 6,
+            '造成 6 点伤害 3 次，每次攻击目标随机',
+            [],
+            { multiHit: 3, randomTarget: true },
+            { value: 8, description: '造成 8 点伤害 3 次，每次攻击目标随机' }
+        );
+    }
+
+    static createWhirlwind() {
+        return new Card(
+            'whirlwind', '旋风斩', 1, CardType.ATTACK, CardTarget.ALL_ENEMIES, 4,
+            '对所有敌人造成 4 点伤害，重复 3 次',
+            [{ type: 'damage_all', value: 4, repeat: 3 }],
+            { exhaust: true },
+            { value: 6, effects: [{ type: 'damage_all', value: 6, repeat: 3 }], description: '对所有敌人造成 6 点伤害，重复 3 次' }
+        );
+    }
+
+    static createPerfectBlock() {
+        return new Card(
+            'perfect_block', '完美格挡', 1, CardType.SKILL, CardTarget.SELF, 10,
+            '获得 10 点格挡，抽 1 张牌',
+            [{ type: 'draw', value: 1 }],
+            {},
+            { value: 15, description: '获得 15 点格挡，抽 1 张牌' }
+        );
+    }
+
+    static createRampage() {
+        return new Card(
+            'rampage', '暴怒', 1, CardType.ATTACK, CardTarget.ENEMY, 8,
+            '造成 8 点伤害，每有 1 层力量，伤害+2',
+            [{ type: 'rampage', value: 2 }],
+            {},
+            { value: 10, effects: [{ type: 'rampage', value: 3 }], description: '造成 10 点伤害，每有 1 层力量，伤害+3' }
+        );
+    }
+
+    static createThunderclap() {
+        return new Card(
+            'thunderclap', '雷霆一击', 1, CardType.SKILL, CardTarget.ALL_ENEMIES, 0,
+            '给予所有敌人 2 层虚弱，抽 2 张牌',
+            [{ type: 'apply_status', status: StatusType.WEAK, value: 2, target: 'all_enemies' }, { type: 'draw', value: 2 }],
+            {},
+            { effects: [{ type: 'apply_status', status: StatusType.WEAK, value: 3, target: 'all_enemies' }, { type: 'draw', value: 2 }], description: '给予所有敌人 3 层虚弱，抽 2 张牌' }
+        );
+    }
+
+    static createCorruption() {
+        return new Card(
+            'corruption', '腐化', 3, CardType.POWER, CardTarget.SELF, 0,
+            '所有技能牌变为消耗牌，但获得 3 层力量',
+            [{ type: 'corruption', value: 3 }],
+            { exhaust: true },
+            { cost: 2, effects: [{ type: 'corruption', value: 4 }], description: '所有技能牌变为消耗牌，但获得 4 层力量' }
+        );
+    }
+
     static createImpervious() {
         return new Card(
-            'impervious', '坚不可摧', 2, CardType.SKILL, CardTarget.SELF, 30,
-            '获得 30 点格挡',
-            [],
+            'impervious', '无懈可击', 2, CardType.SKILL, CardTarget.SELF, 15,
+            '获得 15 点格挡，本回合不受虚弱影响',
+            [{ type: 'remove_weak' }],
             { exhaust: true },
-            { value: 40, description: '获得 40 点格挡' }
+            { value: 20, description: '获得 20 点格挡，本回合不受虚弱影响' }
+        );
+    }
+
+    static createDevastation() {
+        return new Card(
+            'devastation', '毁灭', 3, CardType.ATTACK, CardTarget.ALL_ENEMIES, 12,
+            '对所有敌人造成 12 点伤害，消耗所有手牌',
+            [{ type: 'exhaust_all' }],
+            { exhaust: true },
+            { value: 15, effects: [{ type: 'exhaust_all' }], description: '对所有敌人造成 15 点伤害，消耗所有手牌' }
         );
     }
 

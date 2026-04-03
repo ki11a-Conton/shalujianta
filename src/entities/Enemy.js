@@ -84,6 +84,21 @@ export class Enemy extends Entity {
             case 'slaver_blue':
                 this.generateSlaverBlueIntent();
                 break;
+            case 'skeleton_warrior':
+                this.generateSkeletonWarriorIntent();
+                break;
+            case 'wraith':
+                this.generateWraithIntent();
+                break;
+            case 'spider':
+                this.generateSpiderIntent();
+                break;
+            case 'gargoyle':
+                this.generateGargoyleIntent();
+                break;
+            case 'the_collector':
+                this.generateCollectorIntent();
+                break;
             default:
                 this.generateRandomIntent();
         }
@@ -285,6 +300,87 @@ export class Enemy extends Entity {
         }
     }
 
+    /**
+     * 骷髅战士 - 坚韧敌人
+     * 3回合循环：攻击 -> 防御 -> 蓄力
+     */
+    generateSkeletonWarriorIntent() {
+        const cycle = this.turnCount % 3;
+        
+        if (cycle === 1) {
+            this.setIntent(IntentType.ATTACK, 10, '挥剑 10');
+        } else if (cycle === 2) {
+            this.setIntent(IntentType.DEFEND, 12, '盾牌：获得 12 格挡');
+        } else {
+            this.setIntent(IntentType.BUFF, 2, '蓄力：获得 2 层力量');
+        }
+    }
+
+    /**
+     * 幽灵 - 灵活敌人
+     * 会施加脆弱效果
+     */
+    generateWraithIntent() {
+        const random = Math.random();
+        
+        if (random < 0.4) {
+            this.setIntent(IntentType.ATTACK, 8, '灵击 8');
+        } else if (random < 0.7) {
+            this.setIntent(IntentType.DEBUFF, 2, '诅咒：施加 2 层脆弱');
+        } else {
+            this.setIntent(IntentType.ATTACK, 12, '猛击 12');
+        }
+    }
+
+    /**
+     * 毒蜘蛛 - 小型敌人
+     * 会施加中毒效果
+     */
+    generateSpiderIntent() {
+        const cycle = this.turnCount % 2;
+        
+        if (cycle === 1) {
+            this.setIntent(IntentType.ATTACK, 6, '叮咬 6');
+        } else {
+            this.setIntent(IntentType.DEBUFF, 3, '下毒：施加 3 层中毒');
+        }
+    }
+
+    /**
+     * 石像鬼 - 精英敌人
+     * 高格挡，会蓄力攻击
+     */
+    generateGargoyleIntent() {
+        const cycle = this.turnCount % 3;
+        
+        if (cycle === 1) {
+            this.setIntent(IntentType.DEFEND, 15, '石化：获得 15 格挡');
+        } else if (cycle === 2) {
+            this.setIntent(IntentType.BUFF, 3, '蓄力：获得 3 层力量');
+        } else {
+            const strength = this.getStatus(StatusType.STRENGTH) || 0;
+            this.setIntent(IntentType.ATTACK, 18 + strength, `石击 ${18 + strength}`);
+        }
+    }
+
+    /**
+     * 收藏家 -  boss敌人
+     * 会召唤小怪，使用多种攻击方式
+     */
+    generateCollectorIntent() {
+        const random = Math.random();
+        
+        if (this.turnCount === 1) {
+            this.setIntent(IntentType.BUFF, 1, '准备：召唤助手');
+        } else if (random < 0.3) {
+            this.setIntent(IntentType.ATTACK, 15, '挥刀 15');
+        } else if (random < 0.6) {
+            this.setIntent(IntentType.ATTACK, 20, '重击 20');
+        } else {
+            this.setIntent(IntentType.BUFF, 1, '召唤：召唤助手');
+        }
+    }
+
     generateRandomIntent() {
         const intents = [
             { type: IntentType.ATTACK, value: 10, desc: '攻击 10' },
@@ -428,17 +524,47 @@ export class EnemyFactory {
         return enemy;
     }
 
+    static createSkeletonWarrior() {
+        const enemy = new Enemy('skeleton_warrior', '骷髅战士', 35 + Math.floor(Math.random() * 8));
+        return enemy;
+    }
+
+    static createWraith() {
+        const enemy = new Enemy('wraith', '幽灵', 28 + Math.floor(Math.random() * 6));
+        return enemy;
+    }
+
+    static createSpider() {
+        const enemy = new Enemy('spider', '毒蜘蛛', 22 + Math.floor(Math.random() * 4));
+        return enemy;
+    }
+
+    static createGargoyle() {
+        const enemy = new Enemy('gargoyle', '石像鬼', 50 + Math.floor(Math.random() * 10));
+        enemy.isElite = true;
+        return enemy;
+    }
+
+    static createTheCollector() {
+        const enemy = new Enemy('the_collector', '收藏家', 300);
+        enemy.isBoss = true;
+        return enemy;
+    }
+
     static getRandomEnemy(floor) {
         const basicEnemies = [
             EnemyFactory.createCultist,
             EnemyFactory.createJawWorm,
             EnemyFactory.createLooter,
             EnemyFactory.createFungiBeast,
+            EnemyFactory.createSpider,
+            EnemyFactory.createWraith
         ];
         
         const mediumEnemies = [
             EnemyFactory.createExordiumThug,
             EnemyFactory.createSlaverBlue,
+            EnemyFactory.createSkeletonWarrior
         ];
         
         if (floor <= 2) {
@@ -453,14 +579,17 @@ export class EnemyFactory {
 
     static getEliteEnemy(floor) {
         if (floor <= 3) {
-            return EnemyFactory.createGremlinNob();
+            const elites = [EnemyFactory.createGremlinNob, EnemyFactory.createLargeSlime, EnemyFactory.createGargoyle];
+            return elites[Math.floor(Math.random() * elites.length)]();
         } else {
-            return Math.random() < 0.5 ? EnemyFactory.createGremlinNob() : EnemyFactory.createLargeSlime();
+            const elites = [EnemyFactory.createGremlinNob, EnemyFactory.createLargeSlime, EnemyFactory.createGargoyle];
+            return elites[Math.floor(Math.random() * elites.length)]();
         }
     }
 
     static getBossEnemy(floor) {
-        return EnemyFactory.createHexaghost();
+        const bosses = [EnemyFactory.createHexaghost, EnemyFactory.createTheCollector];
+        return bosses[Math.floor(Math.random() * bosses.length)]();
     }
 
     static generateEncounter(floor, isElite = false, isBoss = false) {
