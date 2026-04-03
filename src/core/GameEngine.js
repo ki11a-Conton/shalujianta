@@ -40,8 +40,13 @@ export class GameEngine {
 
         this.campfireRestHovered = false;
         this.campfireSearchHovered = false;
+        this.campfireUpgradeHovered = false;
         this.campfireContinueHovered = false;
         this.campfireActionTaken = false;
+        this.campfireScreen = 'main';
+        this.campfireUpgradeCards = [];
+        this.campfireUpgradeCardHovered = [];
+        this.selectedUpgradeCardIndex = -1;
 
         this.mapLayers = [];
         this.currentMapNode = null;
@@ -1393,23 +1398,30 @@ export class GameEngine {
         ctx.font = 'bold 120px Microsoft YaHei';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('🔥', centerX, centerY - 120);
+        ctx.fillText('🔥', centerX, centerY - 140);
 
         ctx.fillStyle = '#f39c12';
         ctx.font = 'bold 36px Microsoft YaHei';
-        ctx.fillText('篝火休息站', centerX, centerY - 20);
+        ctx.fillText('篝火休息站', centerX, centerY - 40);
 
         ctx.fillStyle = '#ecf0f1';
         ctx.font = '18px Microsoft YaHei';
-        ctx.fillText(`第 ${this.gameState.currentFloor} 层`, centerX, centerY + 20);
+        ctx.fillText(`第 ${this.gameState.currentFloor} 层`, centerX, centerY - 5);
 
-        if (!this.campfireActionTaken) {
-            this.drawCampfireButton(ctx, centerX - 120, centerY + 80, '休息', '恢复 30% HP', this.campfireRestHovered, '#27ae60');
-            this.drawCampfireButton(ctx, centerX + 120, centerY + 80, '搜寻', '获得 1 个遗物', this.campfireSearchHovered, '#3498db');
+        if (this.campfireScreen === 'main' && !this.campfireActionTaken) {
+            this.drawCampfireButton(ctx, centerX - 200, centerY + 60, '休息', '恢复 30% HP', this.campfireRestHovered, '#27ae60');
+            this.drawCampfireButton(ctx, centerX, centerY + 60, '升级', '升级一张卡牌', this.campfireUpgradeHovered, '#9b59b6');
+            this.drawCampfireButton(ctx, centerX + 200, centerY + 60, '搜寻', '获得 1 个遗物', this.campfireSearchHovered, '#3498db');
+        } else if (this.campfireScreen === 'upgrade') {
+            this.drawCampfireUpgradeScreen(ctx);
         } else {
+            let message = '✓ 已完成操作';
+            if (this.campfireActionTaken === 'rest') message = '✓ 已完成休息';
+            if (this.campfireActionTaken === 'upgrade') message = '✓ 已完成升级';
+            if (this.campfireActionTaken === 'search') message = '✓ 已完成搜寻';
             ctx.fillStyle = '#2ecc71';
             ctx.font = 'bold 24px Microsoft YaHei';
-            ctx.fillText('✓ 已完成休息', centerX, centerY + 100);
+            ctx.fillText(message, centerX, centerY + 100);
             this.drawCampfireContinueButton(ctx, centerX, centerY + 160);
         }
 
@@ -1439,6 +1451,36 @@ export class GameEngine {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.font = '12px Microsoft YaHei';
         ctx.fillText(desc, centerX, y + 55);
+    }
+
+    drawCampfireUpgradeScreen(ctx) {
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = 'bold 32px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('选择一张卡牌升级', centerX, 80);
+
+        ctx.fillStyle = '#ecf0f1';
+        ctx.font = '16px Microsoft YaHei';
+        ctx.fillText('点击卡牌进行升级', centerX, 110);
+
+        const cardWidth = 150;
+        const cardHeight = 200;
+        const cardSpacing = 30;
+        const totalCards = this.campfireUpgradeCards.length;
+        const totalWidth = totalCards * cardWidth + (totalCards - 1) * cardSpacing;
+        const startX = centerX - totalWidth / 2;
+        const startY = 150;
+
+        this.campfireUpgradeCards.forEach((card, index) => {
+            const cardX = startX + index * (cardWidth + cardSpacing);
+            this.drawRewardCard(ctx, card, cardX + cardWidth / 2, startY + cardHeight / 2, this.campfireUpgradeCardHovered[index]);
+        });
+
+        ctx.textBaseline = 'alphabetic';
     }
 
     drawCampfireContinueButton(ctx, centerX, y) {
@@ -2052,20 +2094,47 @@ export class GameEngine {
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
 
-        if (!this.campfireActionTaken) {
-            const restButtonRect = { x: centerX - 120 - 90, y: centerY + 80, width: 180, height: 80 };
+        if (this.campfireScreen === 'main' && !this.campfireActionTaken) {
+            const restButtonRect = { x: centerX - 200 - 90, y: centerY + 60, width: 180, height: 80 };
             this.campfireRestHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, restButtonRect);
 
-            const searchButtonRect = { x: centerX + 120 - 90, y: centerY + 80, width: 180, height: 80 };
+            const upgradeButtonRect = { x: centerX - 90, y: centerY + 60, width: 180, height: 80 };
+            this.campfireUpgradeHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, upgradeButtonRect);
+
+            const searchButtonRect = { x: centerX + 200 - 90, y: centerY + 60, width: 180, height: 80 };
             this.campfireSearchHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, searchButtonRect);
 
             if (this.input.isClicked && this.campfireRestHovered) {
                 this.doCampfireRest();
             }
 
+            if (this.input.isClicked && this.campfireUpgradeHovered) {
+                this.doCampfireUpgrade();
+            }
+
             if (this.input.isClicked && this.campfireSearchHovered) {
                 this.doCampfireSearch();
             }
+        } else if (this.campfireScreen === 'upgrade') {
+            const cardWidth = 150;
+            const cardHeight = 200;
+            const cardSpacing = 30;
+            const totalCards = this.campfireUpgradeCards.length;
+            const totalWidth = totalCards * cardWidth + (totalCards - 1) * cardSpacing;
+            const startX = centerX - totalWidth / 2;
+            const startY = 150;
+
+            this.campfireUpgradeCardHovered = this.campfireUpgradeCards.map(() => false);
+
+            this.campfireUpgradeCards.forEach((card, index) => {
+                const cardX = startX + index * (cardWidth + cardSpacing);
+                const cardRect = { x: cardX, y: startY, width: cardWidth, height: cardHeight };
+                this.campfireUpgradeCardHovered[index] = this.isMouseOver(this.input.mouseX, this.input.mouseY, cardRect);
+
+                if (this.input.isClicked && this.campfireUpgradeCardHovered[index] && !card.isUpgraded) {
+                    this.upgradeCampfireCard(index);
+                }
+            });
         } else {
             const continueButtonRect = { x: centerX - 80, y: centerY + 160, width: 160, height: 50 };
             this.campfireContinueHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, continueButtonRect);
@@ -2451,8 +2520,13 @@ export class GameEngine {
                 this.uiState = UIState.CAMPFIRE;
                 this.campfireRestHovered = false;
                 this.campfireSearchHovered = false;
+                this.campfireUpgradeHovered = false;
                 this.campfireContinueHovered = false;
                 this.campfireActionTaken = false;
+                this.campfireScreen = 'main';
+                this.campfireUpgradeCards = [];
+                this.campfireUpgradeCardHovered = [];
+                this.selectedUpgradeCardIndex = -1;
                 break;
             case NodeType.SHOP:
                 this.uiState = UIState.SHOP;
@@ -2520,7 +2594,7 @@ export class GameEngine {
         const player = this.gameState.player;
         const healAmount = Math.floor(player.maxHp * 0.3);
         player.heal(healAmount);
-        this.campfireActionTaken = true;
+        this.campfireActionTaken = 'rest';
         this.saveGame();
     }
 
@@ -2529,8 +2603,25 @@ export class GameEngine {
         const relics = [new VajraRelic(), new AnchorRelic()];
         const randomRelic = relics[Math.floor(Math.random() * relics.length)];
         player.relics.push(randomRelic);
-        this.campfireActionTaken = true;
+        this.campfireActionTaken = 'search';
         this.saveGame();
+    }
+
+    doCampfireUpgrade() {
+        const allCards = this.gameState.deckManager.getAllCards();
+        this.campfireUpgradeCards = allCards.filter(card => !card.isUpgraded && card.upgradeData);
+        this.campfireUpgradeCardHovered = this.campfireUpgradeCards.map(() => false);
+        this.campfireScreen = 'upgrade';
+    }
+
+    upgradeCampfireCard(index) {
+        const card = this.campfireUpgradeCards[index];
+        if (card && card.upgrade()) {
+            console.log(`卡牌 ${card.name} 升级成功！`);
+            this.campfireActionTaken = 'upgrade';
+            this.campfireScreen = 'main';
+            this.saveGame();
+        }
     }
 
     restartGame() {
