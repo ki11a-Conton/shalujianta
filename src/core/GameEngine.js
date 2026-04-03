@@ -1182,7 +1182,7 @@ export class GameEngine {
 
     drawDeckPiles(ctx) {
         const deckStatus = this.gameState.deckManager.getStatus();
-        const pileY = this.canvas.height - 220;
+        const pileY = this.canvas.height - 350;
         const pileSpacing = 160;
         const totalWidth = 3 * 140 + 2 * 20;
         const startX = (this.canvas.width - totalWidth) / 2;
