@@ -1182,10 +1182,9 @@ export class GameEngine {
 
     drawDeckPiles(ctx) {
         const deckStatus = this.gameState.deckManager.getStatus();
-        const pileY = this.canvas.height - 350;
-        const pileSpacing = 160;
-        const totalWidth = 3 * 140 + 2 * 20;
-        const startX = (this.canvas.width - totalWidth) / 2;
+        const pileY = 70;
+        const pileSpacing = 100;
+        const startX = 10;
 
         const piles = [
             { name: '抽牌堆', count: deckStatus.drawPile, color: '#3498db', icon: '📚' },
@@ -1194,37 +1193,38 @@ export class GameEngine {
         ];
 
         piles.forEach((pile, index) => {
-            const x = startX + index * pileSpacing;
-            const w = 140;
-            const h = 90;
+            const x = startX;
+            const y = pileY + index * pileSpacing;
+            const w = 90;
+            const h = 70;
 
             ctx.save();
             
-            const gradient = ctx.createLinearGradient(x, pileY, x, pileY + h);
+            const gradient = ctx.createLinearGradient(x, y, x, y + h);
             gradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
             gradient.addColorStop(1, 'rgba(15, 15, 26, 0.98)');
             ctx.fillStyle = gradient;
-            this.drawRoundedRect(ctx, x, pileY, w, h, 10);
+            this.drawRoundedRect(ctx, x, y, w, h, 8);
             ctx.fill();
 
             ctx.strokeStyle = pile.color;
             ctx.lineWidth = 2;
-            this.drawRoundedRect(ctx, x, pileY, w, h, 10);
+            this.drawRoundedRect(ctx, x, y, w, h, 8);
             ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = '32px Arial';
+            ctx.font = '24px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(pile.icon, x + w / 2, pileY + 30);
+            ctx.fillText(pile.icon, x + w / 2, y + 22);
 
             ctx.fillStyle = '#ecf0f1';
-            ctx.font = 'bold 14px Microsoft YaHei';
-            ctx.fillText(pile.name, x + w / 2, pileY + 55);
+            ctx.font = 'bold 11px Microsoft YaHei';
+            ctx.fillText(pile.name, x + w / 2, y + 42);
 
             ctx.fillStyle = pile.color;
-            ctx.font = 'bold 20px Microsoft YaHei';
-            ctx.fillText(pile.count, x + w / 2, pileY + 78);
+            ctx.font = 'bold 18px Microsoft YaHei';
+            ctx.fillText(pile.count, x + w / 2, y + 60);
 
             ctx.restore();
         });
