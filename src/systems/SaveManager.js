@@ -8,7 +8,7 @@
 import { Card } from '../cards/Card.js';
 import { Player } from '../entities/Player.js';
 import { DeckManager } from './DeckManager.js';
-import { VajraRelic, AnchorRelic, RedStoneRelic, FeatherRelic, CoinBagRelic, PenNibRelic, IceCreamRelic, PainWheelRelic, AmberRelic, BrokenCrownRelic } from './Relic.js';
+import { VajraRelic, AnchorRelic, RedStoneRelic, CoinBagRelic, PenNibRelic, IceCreamRelic, PainWheelRelic, AmberRelic, BrokenCrownRelic } from './Relic.js';
 import { CardType, CardTarget } from '../config/constants.js';
 
 const SAVE_KEY = 'slay_the_spire_save';
@@ -19,7 +19,6 @@ export class SaveManager {
             'vajra': VajraRelic,
             'anchor': AnchorRelic,
             'red_stone': RedStoneRelic,
-            'feather': FeatherRelic,
             'coin_bag': CoinBagRelic,
             'pen_nib': PenNibRelic,
             'ice_cream': IceCreamRelic,
