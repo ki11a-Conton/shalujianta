@@ -50,42 +50,13 @@ class AssetManager {
                 };
                 img.onerror = () => {
                     console.warn(`资源加载失败: ${key} (${this.assetList[key]})`);
-                    // 创建一个占位符画布
-                    const placeholder = document.createElement('canvas');
-                    placeholder.width = 100;
-                    placeholder.height = 100;
-                    const ctx = placeholder.getContext('2d');
-                    // 根据资源类型设置不同的占位符颜色
-                    const colors = {
-                        'bg': '#1a1a2e',
-                        'player': '#3498db',
-                        'enemy_cultist': '#e74c3c',
-                        'enemy_slime': '#27ae60',
-                        'enemy_jaw_worm': '#f39c12',
-                        'card_attack': '#e74c3c',
-                        'card_skill': '#3498db',
-                        'card_power': '#9b59b6',
-                        'card_bg': '#34495e',
-                        'relic_vajra': '#f1c40f',
-                        'relic_anchor': '#3498db',
-                        'energy_orb': '#f1c40f',
-                        'shop_icon': '#3498db',
-                        'campfire': '#e67e22'
-                    };
-                    ctx.fillStyle = colors[key] || '#95a5a6';
-                    ctx.fillRect(0, 0, placeholder.width, placeholder.height);
-                    ctx.fillStyle = '#fff';
-                    ctx.font = '20px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(key, placeholder.width / 2, placeholder.height / 2);
-                    this.images[key] = placeholder;
+                    this.images[key] = null;
                     this.loadedAssets++;
                     this.loadProgress = this.loadedAssets / this.totalAssets;
                     if (onProgress) {
                         onProgress(this.loadProgress, key);
                     }
-                    resolve(placeholder);
+                    resolve(null);
                 };
                 img.src = this.assetList[key];
             });
