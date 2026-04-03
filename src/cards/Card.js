@@ -38,7 +38,8 @@ export class Card {
             innate: keywords.innate || false,
             retain: keywords.retain || false,
             ethereal: keywords.ethereal || false,
-            unplayable: keywords.unplayable || false
+            unplayable: keywords.unplayable || false,
+            multiHit: keywords.multiHit || 1
         };
         
         this.upgradeData = upgradeData;
@@ -158,9 +159,15 @@ export class Card {
         switch (this.type) {
             case CardType.ATTACK:
                 if (target) {
-                    const finalDamage = Math.floor(this.calculateDamage(caster) * damageMultiplier);
-                    target.takeDamage(finalDamage);
-                    this.damageDealt = finalDamage;
+                    const hitCount = this.keywords.multiHit || 1;
+                    let totalDamage = 0;
+                    for (let i = 0; i < hitCount; i++) {
+                        const finalDamage = Math.floor(this.calculateDamage(caster) * damageMultiplier);
+                        target.takeDamage(finalDamage);
+                        totalDamage += finalDamage;
+                        console.log(`第 ${i + 1} 次攻击造成 ${finalDamage} 点伤害`);
+                    }
+                    this.damageDealt = totalDamage;
                 }
                 break;
 
