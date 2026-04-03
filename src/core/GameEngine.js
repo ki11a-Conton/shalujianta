@@ -156,6 +156,7 @@ export class GameEngine {
 
         this.setupVisualFeedbackCallbacks();
         this.setupVictoryCallback();
+        this.setupDefeatCallback();
 
         this.generateMapNodes();
         this.currentMapNode = null;
@@ -193,6 +194,17 @@ export class GameEngine {
         this.gameState.onVictory = () => {
             this.handleVictory();
         };
+    }
+
+    setupDefeatCallback() {
+        this.gameState.onDefeat = () => {
+            this.handleDefeat();
+        };
+    }
+
+    handleDefeat() {
+        this.uiState = UIState.GAME_OVER;
+        SaveManager.deleteSave();
     }
 
     addFloatingText(x, y, text, color) {
@@ -274,6 +286,10 @@ export class GameEngine {
         } else if (this.uiState === UIState.CARD_REMOVAL) {
             this.handleCardRemovalInput();
         } else if (this.uiState === UIState.GAME_WIN) {
+            if (this.input.isClicked && this.restartButtonHovered) {
+                this.restartGame();
+            }
+        } else if (this.uiState === UIState.GAME_OVER) {
             if (this.input.isClicked && this.restartButtonHovered) {
                 this.restartGame();
             }
@@ -377,6 +393,8 @@ export class GameEngine {
             this.drawCardRemovalScreen(ctx);
         } else if (this.uiState === UIState.GAME_WIN) {
             this.drawGameWinScreen(ctx);
+        } else if (this.uiState === UIState.GAME_OVER) {
+            this.drawGameOverScreen(ctx);
         }
     }
 
@@ -1958,6 +1976,50 @@ export class GameEngine {
         ctx.fillText('重新开始', centerX, buttonY + buttonH / 2);
     }
 
+    drawGameOverScreen(ctx) {
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = 'bold 64px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💀 你死了', centerX, centerY - 100);
+
+        ctx.fillStyle = '#ecf0f1';
+        ctx.font = '24px Microsoft YaHei';
+        ctx.fillText('你的冒险结束了...', centerX, centerY - 20);
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = '20px Microsoft YaHei';
+        ctx.fillText(`到达层数: ${this.gameState.currentFloor}`, centerX, centerY + 30);
+
+        const buttonY = centerY + 120;
+        const buttonW = 200;
+        const buttonH = 50;
+        const buttonX = centerX - buttonW / 2;
+
+        this.restartButtonHovered = this.isMouseOver(this.input.mouseX, this.input.mouseY, {
+            x: buttonX, y: buttonY, width: buttonW, height: buttonH
+        });
+
+        ctx.fillStyle = this.restartButtonHovered ? '#c0392b' : '#e74c3c';
+        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 10);
+        ctx.fill();
+
+        ctx.strokeStyle = this.restartButtonHovered ? '#f1c40f' : '#c0392b';
+        ctx.lineWidth = this.restartButtonHovered ? 3 : 2;
+        this.drawRoundedRect(ctx, buttonX, buttonY, buttonW, buttonH, 10);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 20px Microsoft YaHei';
+        ctx.fillText('重新开始', centerX, buttonY + buttonH / 2);
+    }
+
     handleCardInteraction() {
         const hand = this.gameState.deckManager.hand;
         const player = this.gameState.player;
@@ -2515,6 +2577,7 @@ export class GameEngine {
                 this.syncEntityPositions();
                 this.setupVisualFeedbackCallbacks();
                 this.setupVictoryCallback();
+                this.setupDefeatCallback();
                 break;
             case NodeType.CAMPFIRE:
                 this.uiState = UIState.CAMPFIRE;
@@ -2853,6 +2916,7 @@ export class GameEngine {
 
         this.setupVisualFeedbackCallbacks();
         this.setupVictoryCallback();
+        this.setupDefeatCallback();
 
         this.generateMapNodes();
         this.currentMapNode = null;
