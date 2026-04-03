@@ -346,6 +346,8 @@ export class GameEngine {
         if (this.uiState === UIState.BATTLE) {
             this.drawGameWorld(ctx);
             this.drawGameInfo(ctx);
+            this.drawDeckPiles(ctx);
+            this.drawBattleLog(ctx);
         }
 
         this.floatingTexts.forEach(text => text.draw(ctx));
@@ -682,9 +684,59 @@ export class GameEngine {
             }
         }
 
-        ctx.fillStyle = '#f1c40f';
-        ctx.font = 'bold 14px Microsoft YaHei';
-        ctx.fillText(enemy.intentDescription, x + w / 2, y + h - 20);
+        const intentY = y - 30;
+        const intentWidth = w + 20;
+        const intentHeight = 45;
+        const intentX = x - 10;
+
+        ctx.save();
+
+        const intentBgGradient = ctx.createLinearGradient(intentX, intentY, intentX, intentY + intentHeight);
+        intentBgGradient.addColorStop(0, 'rgba(30, 30, 40, 0.98)');
+        intentBgGradient.addColorStop(1, 'rgba(15, 15, 26, 0.98)');
+        ctx.fillStyle = intentBgGradient;
+        this.drawRoundedRect(ctx, intentX, intentY, intentWidth, intentHeight, 8);
+        ctx.fill();
+
+        let borderColor = '#f1c40f';
+        if (enemy.intentType === 'attack' || enemy.intentType === 'attack_defend') {
+            borderColor = '#e74c3c';
+        } else if (enemy.intentType === 'defend') {
+            borderColor = '#3498db';
+        } else if (enemy.intentType === 'buff') {
+            borderColor = '#f39c12';
+        } else if (enemy.intentType === 'debuff') {
+            borderColor = '#9b59b6';
+        }
+
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 2;
+        this.drawRoundedRect(ctx, intentX, intentY, intentWidth, intentHeight, 8);
+        ctx.stroke();
+
+        ctx.shadowColor = borderColor;
+        ctx.shadowBlur = 10;
+
+        if (enemy.intentIcon) {
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(enemy.intentIcon, x + w / 2, intentY + 20);
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ecf0f1';
+        ctx.font = '11px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        const descLines = enemy.intentDescription.split(' ');
+        if (descLines.length > 1) {
+            ctx.fillText(descLines[0], x + w / 2, intentY + 42);
+        } else {
+            ctx.fillText(enemy.intentDescription, x + w / 2, intentY + 42);
+        }
+
+        ctx.restore();
     }
 
     getEnemyImageKey(enemyId) {
@@ -1126,6 +1178,104 @@ export class GameEngine {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillText(phaseText, this.canvas.width / 2, this.canvas.height - 250);
+    }
+
+    drawDeckPiles(ctx) {
+        const deckStatus = this.gameState.deckManager.getStatus();
+        const pileY = this.canvas.height - 120;
+        const pileSpacing = 160;
+        const startX = 10;
+
+        const piles = [
+            { name: '抽牌堆', count: deckStatus.drawPile, color: '#3498db', icon: '📚' },
+            { name: '弃牌堆', count: deckStatus.discardPile, color: '#e67e22', icon: '🗂️' },
+            { name: '消耗堆', count: deckStatus.exhaustPile, color: '#9b59b6', icon: '✨' }
+        ];
+
+        piles.forEach((pile, index) => {
+            const x = startX + index * pileSpacing;
+            const w = 140;
+            const h = 90;
+
+            ctx.save();
+            
+            const gradient = ctx.createLinearGradient(x, pileY, x, pileY + h);
+            gradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
+            gradient.addColorStop(1, 'rgba(15, 15, 26, 0.98)');
+            ctx.fillStyle = gradient;
+            this.drawRoundedRect(ctx, x, pileY, w, h, 10);
+            ctx.fill();
+
+            ctx.strokeStyle = pile.color;
+            ctx.lineWidth = 2;
+            this.drawRoundedRect(ctx, x, pileY, w, h, 10);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '32px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pile.icon, x + w / 2, pileY + 30);
+
+            ctx.fillStyle = '#ecf0f1';
+            ctx.font = 'bold 14px Microsoft YaHei';
+            ctx.fillText(pile.name, x + w / 2, pileY + 55);
+
+            ctx.fillStyle = pile.color;
+            ctx.font = 'bold 20px Microsoft YaHei';
+            ctx.fillText(pile.count, x + w / 2, pileY + 78);
+
+            ctx.restore();
+        });
+    }
+
+    drawBattleLog(ctx) {
+        const logWidth = 280;
+        const logHeight = 200;
+        const logX = this.canvas.width - logWidth - 20;
+        const logY = 70;
+
+        ctx.save();
+
+        const bgGradient = ctx.createLinearGradient(logX, logY, logX, logY + logHeight);
+        bgGradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
+        bgGradient.addColorStop(1, 'rgba(15, 15, 26, 0.98)');
+        ctx.fillStyle = bgGradient;
+        this.drawRoundedRect(ctx, logX, logY, logWidth, logHeight, 10);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+        ctx.lineWidth = 2;
+        this.drawRoundedRect(ctx, logX, logY, logWidth, logHeight, 10);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = 'bold 16px Microsoft YaHei';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('📜 战斗日志', logX + 15, logY + 12);
+
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(logX + 10, logY + 38);
+        ctx.lineTo(logX + logWidth - 10, logY + 38);
+        ctx.stroke();
+
+        const logs = this.gameState.battleLog.slice(-8).reverse();
+        const lineHeight = 20;
+        const startLogY = logY + 48;
+
+        ctx.textBaseline = 'top';
+        logs.forEach((log, index) => {
+            const alpha = 1 - (index * 0.1);
+            ctx.fillStyle = `rgba(236, 240, 241, ${alpha})`;
+            ctx.font = '12px Microsoft YaHei';
+            const text = `[${log.turn}] ${log.message}`;
+            this.drawWrappedText(ctx, text, logX + 15, startLogY + index * lineHeight, logWidth - 30, lineHeight);
+        });
+
+        ctx.restore();
     }
 
     drawRewardScreen(ctx) {
