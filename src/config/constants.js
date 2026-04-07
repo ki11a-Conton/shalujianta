@@ -67,6 +67,7 @@ export const UIState = {
     CAMPFIRE: 'campfire',
     MAP: 'map',
     GAME_WIN: 'game_win',
+    GAME_OVER: 'game_over',
     SHOP: 'shop',
     CARD_REMOVAL: 'card_removal'
 };
